@@ -189,6 +189,60 @@
     transition:opacity .6s;
   }
 
+  /* Zoom overlay */
+  .zoom-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(8,9,12,.97);
+    z-index:200;
+    display:none;
+    flex-direction:column;
+    backdrop-filter:blur(2px);
+  }
+
+  .zoom-overlay.open{ display:flex; }
+
+  .zoom-overlay-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:14px;
+    font-family:"Helvetica Neue",Arial,sans-serif;
+  }
+
+  .zoom-overlay-pct{
+    min-width:52px;
+    text-align:center;
+    color:var(--text-dim);
+    font-size:13px;
+    letter-spacing:.5px;
+  }
+
+  .zoom-overlay-viewport{
+    flex:1;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:zoom-in;
+    touch-action:none;
+    min-height:0;
+  }
+
+  .zoom-overlay-viewport.zoomed{ cursor:grab; }
+  .zoom-overlay-viewport.dragging{ cursor:grabbing; }
+
+  .zoom-overlay-viewport img{
+    max-width:96vw;
+    max-height:80vh;
+    user-select:none;
+    -webkit-user-drag:none;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+    background:#fdfcf8;
+    will-change:transform;
+  }
+
   .loading-screen{
     position:fixed;
     inset:0;
@@ -257,7 +311,20 @@
 
   <div class="stage">
     <div id="book-slot"></div>
-    <div class="hint" id="hint">Click the page edge or use the arrows to turn pages</div>
+    <div class="hint" id="hint">Double-click a page to zoom in for easy reading</div>
+  </div>
+
+  <div id="zoomOverlay" class="zoom-overlay">
+    <div class="zoom-overlay-toolbar">
+      <div class="btn" id="zoomOverlayOut" title="Zoom out">−</div>
+      <div class="zoom-overlay-pct" id="zoomOverlayPct">100%</div>
+      <div class="btn" id="zoomOverlayIn" title="Zoom in">+</div>
+      <div class="btn" id="zoomOverlayReset" title="Reset">⟳</div>
+      <div class="btn" id="zoomOverlayClose" title="Close">✕</div>
+    </div>
+    <div class="zoom-overlay-viewport" id="zoomViewport">
+      <img id="zoomImage" draggable="false" alt="Zoomed page" />
+    </div>
   </div>
 
   <div class="controls">
@@ -270,7 +337,7 @@
     <div class="divider"></div>
     <div class="zoom-group">
       <div class="btn" id="zoomOutBtn" title="Zoom out">−</div>
-      <input type="range" id="zoomSlider" min="70" max="160" value="100" />
+      <input type="range" id="zoomSlider" min="60" max="220" value="100" />
       <div class="btn" id="zoomInBtn" title="Zoom in">+</div>
     </div>
     <div class="divider"></div>
@@ -436,11 +503,11 @@ function bindControls() {
 
   zoomSlider.addEventListener("input", (e) => applyZoom(e.target.value));
   document.getElementById("zoomInBtn").addEventListener("click", () => {
-    zoomSlider.value = Math.min(160, +zoomSlider.value + 10);
+    zoomSlider.value = Math.min(220, +zoomSlider.value + 10);
     applyZoom(zoomSlider.value);
   });
   document.getElementById("zoomOutBtn").addEventListener("click", () => {
-    zoomSlider.value = Math.max(70, +zoomSlider.value - 10);
+    zoomSlider.value = Math.max(60, +zoomSlider.value - 10);
     applyZoom(zoomSlider.value);
   });
 
@@ -452,7 +519,108 @@ function bindControls() {
     }
   });
 
+  // Double-click any page to open it in the zoom overlay for easy reading
+  bookSlot.addEventListener("dblclick", (e) => {
+    const pageEl = e.target.closest(".page");
+    if (!pageEl) return;
+    const canvas = pageEl.querySelector("canvas");
+    if (!canvas) return;
+    openZoomOverlay(canvas);
+  });
+
   setTimeout(() => { hint.style.opacity = "0"; }, 5000);
+}
+
+/* ---------------- Zoom overlay (click-to-zoom reading view) ---------------- */
+const zoomOverlay   = document.getElementById("zoomOverlay");
+const zoomViewport   = document.getElementById("zoomViewport");
+const zoomImage      = document.getElementById("zoomImage");
+const zoomOverlayPct = document.getElementById("zoomOverlayPct");
+
+let overlayScale = 1;
+let overlayPanX = 0;
+let overlayPanY = 0;
+let overlayDragging = false;
+let overlayDragStart = { x: 0, y: 0 };
+let overlayPanStart = { x: 0, y: 0 };
+
+const OVERLAY_MIN_SCALE = 1;
+const OVERLAY_MAX_SCALE = 5;
+
+function openZoomOverlay(canvas) {
+  zoomImage.src = canvas.toDataURL("image/jpeg", 0.92);
+  overlayScale = 1;
+  overlayPanX = 0;
+  overlayPanY = 0;
+  applyOverlayTransform();
+  zoomOverlay.classList.add("open");
+}
+
+function closeZoomOverlay() {
+  zoomOverlay.classList.remove("open");
+}
+
+function applyOverlayTransform() {
+  zoomImage.style.transform = `translate(${overlayPanX}px, ${overlayPanY}px) scale(${overlayScale})`;
+  zoomOverlayPct.textContent = Math.round(overlayScale * 100) + "%";
+  zoomViewport.classList.toggle("zoomed", overlayScale > 1);
+  if (overlayScale <= 1) {
+    overlayPanX = 0;
+    overlayPanY = 0;
+  }
+}
+
+function setOverlayScale(newScale) {
+  overlayScale = Math.min(OVERLAY_MAX_SCALE, Math.max(OVERLAY_MIN_SCALE, newScale));
+  applyOverlayTransform();
+}
+
+function bindZoomOverlay() {
+  document.getElementById("zoomOverlayClose").addEventListener("click", closeZoomOverlay);
+  document.getElementById("zoomOverlayIn").addEventListener("click", () => setOverlayScale(overlayScale + 0.5));
+  document.getElementById("zoomOverlayOut").addEventListener("click", () => setOverlayScale(overlayScale - 0.5));
+  document.getElementById("zoomOverlayReset").addEventListener("click", () => setOverlayScale(1));
+
+  // Click the dark backdrop (not the image) to close
+  zoomViewport.addEventListener("click", (e) => {
+    if (e.target === zoomViewport && overlayScale <= 1) closeZoomOverlay();
+  });
+
+  // Mouse wheel to zoom
+  zoomViewport.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.25 : -0.25;
+    setOverlayScale(overlayScale + delta);
+  }, { passive: false });
+
+  // Drag to pan when zoomed in
+  zoomViewport.addEventListener("mousedown", (e) => {
+    if (overlayScale <= 1) return;
+    overlayDragging = true;
+    zoomViewport.classList.add("dragging");
+    overlayDragStart = { x: e.clientX, y: e.clientY };
+    overlayPanStart = { x: overlayPanX, y: overlayPanY };
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!overlayDragging) return;
+    overlayPanX = overlayPanStart.x + (e.clientX - overlayDragStart.x);
+    overlayPanY = overlayPanStart.y + (e.clientY - overlayDragStart.y);
+    applyOverlayTransform();
+  });
+  window.addEventListener("mouseup", () => {
+    overlayDragging = false;
+    zoomViewport.classList.remove("dragging");
+  });
+
+  // Double-click the zoomed image to reset
+  zoomImage.addEventListener("dblclick", () => setOverlayScale(overlayScale > 1 ? 1 : 2.5));
+
+  document.addEventListener("keydown", (e) => {
+    if (!zoomOverlay.classList.contains("open")) return;
+    if (e.key === "Escape") closeZoomOverlay();
+    if (e.key === "+" || e.key === "=") setOverlayScale(overlayScale + 0.5);
+    if (e.key === "-") setOverlayScale(overlayScale - 0.5);
+  });
 }
 
 async function start() {
@@ -460,6 +628,7 @@ async function start() {
     const pageEls = await renderPdfToPages(PDF_FILE);
     initFlipbook(pageEls);
     bindControls();
+    bindZoomOverlay();
     loadingScreen.classList.add("hidden");
   } catch (err) {
     console.error(err);
