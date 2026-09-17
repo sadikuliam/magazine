@@ -1,119 +1,635 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHM Super Fast Flipbook</title>
-    
-    <style>
-        :root { --bg: #070a10; --accent: #55d6ff; }
-        body {
-            background: linear-gradient(145deg, #070a10, #0c111b 55%, #080b12);
-            margin: 0; display: flex; justify-content: center; align-items: center;
-            height: 100vh; overflow: hidden; font-family: system-ui, sans-serif;
-        }
-        .container { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; }
-        .flip-book { display: none; box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-        .page { background: #ffffff; position: relative; overflow: hidden; border: 1px solid rgba(0,0,0,0.1); }
-        
-        .page-text { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; color: #a1a1aa; font-size: 14px; z-index: 1; }
-        .page-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; z-index: 2; opacity: 0; transition: opacity 0.3s; background: white; }
-        
-        .loader { text-align: center; position: absolute; color: #9aa5b5; }
-        .spinner {
-            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<title>SHM Modern Flipbook</title>
 
-    <div class="container">
-        <div id="loader" class="loader">
-            <div class="spinner"></div>
-            <div id="load-text">Optimizing Book...</div>
-        </div>
-        <div id="flipbook" class="flip-book"></div>
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<style>
+:root{
+  --bg:#070a10;
+  --panel:rgba(18,23,34,.82);
+  --panel2:rgba(25,31,44,.92);
+  --line:rgba(255,255,255,.09);
+  --text:#f4f7fb;
+  --muted:#9aa5b5;
+  --accent:#55d6ff;
+  --accent2:#8b5cf6;
+  --page:#fff;
+  --shadow:0 28px 80px rgba(0,0,0,.55);
+  --radius:18px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+button,input{font:inherit}
+button{border:0}
+
+.app{
+  width:100%;height:100%;display:grid;grid-template-rows:auto 1fr auto;
+  background:
+    radial-gradient(circle at 15% 0%,rgba(85,214,255,.09),transparent 30%),
+    radial-gradient(circle at 90% 10%,rgba(139,92,246,.11),transparent 28%),
+    linear-gradient(145deg,#070a10,#0c111b 55%,#080b12);
+}
+
+/* Header */
+.topbar{
+  height:66px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;
+  gap:14px;background:rgba(9,12,18,.82);border-bottom:1px solid var(--line);
+  backdrop-filter:blur(18px);z-index:20;
+}
+.brand{display:flex;align-items:center;gap:11px;min-width:0}
+.logo{
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#071018;
+  font-weight:900;box-shadow:0 8px 25px rgba(85,214,255,.18)
+}
+.brand h1{font-size:16px;margin:0;font-weight:700;white-space:nowrap}
+.brand small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#20e3b2;box-shadow:0 0 12px #20e3b2}
+
+/* Stage */
+.stage{position:relative;min-height:0;overflow:hidden;display:grid;place-items:center;padding:22px}
+.book-wrap{
+  position:relative;display:grid;place-items:center;transform-origin:center;
+  transition:transform .18s ease;will-change:transform;
+}
+.book{
+  position:relative;display:flex;align-items:stretch;justify-content:center;
+  perspective:2200px;filter:drop-shadow(var(--shadow));user-select:none;
+}
+.page{
+  position:relative;background:var(--page);overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+}
+.page canvas{display:block;width:100%;height:100%}
+.page.left{border-radius:5px 0 0 5px}
+.page.right{border-radius:0 5px 5px 0}
+.page.single{border-radius:5px}
+.page::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.12),transparent 8%,transparent 92%,rgba(0,0,0,.08));
+  opacity:.5;
+}
+.spine{
+  position:absolute;top:0;bottom:0;width:3px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(90deg,transparent,rgba(0,0,0,.28),transparent);
+  z-index:4;pointer-events:none;
+}
+
+/* Realistic page turn */
+.flip-page{
+  position:absolute;top:0;bottom:0;width:50%;z-index:10;transform-style:preserve-3d;
+  pointer-events:none;display:none;
+}
+.flip-page.active{display:block}
+.flip-page.right{left:50%;transform-origin:left center}
+.flip-page.left{left:0;transform-origin:right center}
+.flip-face{
+  position:absolute;inset:0;backface-visibility:hidden;background:white;overflow:hidden;
+  box-shadow:0 8px 25px rgba(0,0,0,.25)
+}
+.flip-face.back{transform:rotateY(180deg)}
+.flip-face canvas{width:100%;height:100%;display:block}
+.turning-shadow{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:30}
+
+/* Empty / loading */
+.message{
+  display:grid;place-items:center;width:min(520px,90vw);padding:42px 28px;text-align:center;
+  border:1px solid var(--line);background:var(--panel);border-radius:24px;
+  backdrop-filter:blur(16px);box-shadow:var(--shadow)
+}
+.message .icon{font-size:42px;margin-bottom:12px}
+.message h2{margin:0 0 8px;font-size:20px}
+.message p{margin:0;color:var(--muted);line-height:1.6;font-size:13px}
+.spinner{
+  width:42px;height:42px;border:3px solid rgba(255,255,255,.12);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:auto auto 15px
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Bottom controls */
+.controls{
+  min-height:78px;padding:11px 14px calc(11px + env(safe-area-inset-bottom));
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  background:rgba(9,12,18,.86);border-top:1px solid var(--line);backdrop-filter:blur(18px);z-index:20
+}
+.control-group{display:flex;align-items:center;gap:7px}
+.tool{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;cursor:pointer;
+  color:var(--text);background:var(--panel2);border:1px solid var(--line);
+  transition:.18s;user-select:none
+}
+.tool:hover{border-color:rgba(85,214,255,.55);color:var(--accent);transform:translateY(-1px)}
+.tool:active{transform:scale(.94)}
+.tool:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.sep{height:30px;width:1px;background:var(--line);margin:0 5px}
+.pagebox{
+  min-width:105px;text-align:center;color:var(--muted);font-size:12px;
+  padding:0 6px
+}
+.pagebox strong{color:var(--text);font-weight:700}
+.zoom{
+  display:flex;align-items:center;gap:8px;padding:0 4px
+}
+.zoom input{width:110px;accent-color:var(--accent);cursor:pointer}
+.zoom-label{font-size:11px;color:var(--muted);min-width:40px;text-align:center}
+
+/* Help */
+.tip{
+  position:absolute;bottom:91px;left:50%;transform:translateX(-50%);
+  padding:8px 12px;border:1px solid var(--line);border-radius:999px;
+  background:rgba(12,16,24,.72);color:var(--muted);font-size:11px;
+  pointer-events:none;opacity:0;transition:opacity .4s;white-space:nowrap
+}
+.tip.show{opacity:1}
+
+/* Full-screen reading overlay */
+.reader{
+  position:fixed;inset:0;z-index:100;display:none;flex-direction:column;
+  background:rgba(3,5,9,.97);backdrop-filter:blur(16px)
+}
+.reader.open{display:flex}
+.readerbar{
+  height:62px;display:flex;align-items:center;justify-content:center;gap:8px;
+  border-bottom:1px solid var(--line);background:rgba(8,11,17,.9)
+}
+.reader-title{font-size:12px;color:var(--muted);min-width:60px;text-align:center}
+.reader-viewport{
+  position:relative;flex:1;overflow:hidden;display:grid;place-items:center;
+  cursor:grab;touch-action:none
+}
+.reader-viewport.dragging{cursor:grabbing}
+.reader-img{
+  max-width:92vw;max-height:84vh;background:white;box-shadow:0 25px 90px rgba(0,0,0,.65);
+  transform:translate3d(0,0,0) scale(1);transform-origin:center;will-change:transform;
+  user-select:none;-webkit-user-drag:none
+}
+
+/* Responsive */
+@media(max-width:760px){
+  .topbar{height:58px;padding:0 12px}
+  .logo{width:34px;height:34px;border-radius:10px}
+  .brand h1{font-size:14px}
+  .brand small{display:none}
+  .status{display:none}
+  .stage{padding:8px}
+  .controls{min-height:70px;gap:5px}
+  .tool{width:38px;height:38px;border-radius:11px}
+  .zoom{display:none}
+  .sep{margin:0 2px}
+  .tip{bottom:80px;font-size:10px}
+}
+@media(max-width:430px){
+  .pagebox{min-width:80px}
+  .first-last{display:none}
+}
+
+.file-btn{cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.file-btn input{display:none}
+.file-name{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.8}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">SHM</div>
+      <div>
+        <h1>Modern Flipbook</h1>
+        <small id="fileName">magaz.pdf</small>
+      </div>
+    </div>
+    <div class="status"><span class="dot"></span><span id="statusText">Ready</span></div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div id="bookWrap" class="book-wrap"></div>
+    <div id="tip" class="tip">Drag a page corner • Mouse wheel = zoom • Double-click = reading mode</div>
+  </main>
+
+  <footer class="controls">
+    <div class="control-group first-last">
+      <button class="tool" id="firstBtn" title="First page">⏮</button>
+      <button class="tool" id="prevBtn" title="Previous page">‹</button>
     </div>
 
-    <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <!-- StPageFlip -->
-    <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
+    <div class="pagebox"><strong id="pageNow">1</strong> / <span id="pageTotal">—</span></div>
 
-    <script>
-        const pdfUrl = 'magaz.pdf'; 
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    <div class="control-group">
+      <button class="tool" id="nextBtn" title="Next page">›</button>
+      <button class="tool first-last" id="lastBtn" title="Last page">⏭</button>
+    </div>
 
-        async function loadFastFlipbook() {
-            const loader = document.getElementById('loader');
-            const loadText = document.getElementById('load-text');
-            const fb = document.getElementById('flipbook');
+    <div class="sep"></div>
 
-            try {
-                const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-                const totalPages = pdf.numPages;
-                const firstPage = await pdf.getPage(1);
-                
-                // স্পিড বাড়ানোর প্রধান ট্রিক: Scale কমানো হয়েছে এবং মোবাইলের জন্য আলাদা সাইজ দেওয়া হয়েছে
-                const isMobile = window.innerWidth < 768;
-                const renderScale = isMobile ? 0.8 : 1.0; 
-                const vp = firstPage.getViewport({ scale: renderScale });
+    <div class="zoom">
+      <button class="tool" id="zoomOut" title="Zoom out">−</button>
+      <input id="zoomSlider" type="range" min="70" max="180" value="100">
+      <button class="tool" id="zoomIn" title="Zoom in">+</button>
+      <span class="zoom-label" id="zoomLabel">100%</span>
+    </div>
 
-                // চোখের পলকে বইয়ের কাঠামো তৈরি
-                for (let i = 1; i <= totalPages; i++) {
-                    const div = document.createElement('div');
-                    div.className = 'page';
-                    div.innerHTML = `<div class="page-text">Loading Page ${i}...</div><img id="pimg-${i}" class="page-img">`;
-                    fb.appendChild(div);
-                }
+    <div class="sep"></div>
+    <button class="tool" id="readerBtn" title="Reading / magnifier mode">⌕</button>
+    <button class="tool" id="fullscreenBtn" title="Fullscreen">⛶</button>
+  </footer>
+</div>
 
-                // ফ্লিপবুক চালু করা
-                const pageFlip = new St.PageFlip(fb, {
-                    width: vp.width, height: vp.height,
-                    size: "stretch", minWidth: 300, maxWidth: 1000, minHeight: 400, maxHeight: 1350,
-                    showCover: true, mobileScrollSupport: true
-                });
-                pageFlip.loadFromHTML(document.querySelectorAll('.page'));
+<div class="reader" id="reader">
+  <div class="readerbar">
+    <button class="tool" id="readerOut">−</button>
+    <div class="reader-title" id="readerPct">100%</div>
+    <button class="tool" id="readerIn">+</button>
+    <button class="tool" id="readerReset">↺</button>
+    <button class="tool" id="readerClose">✕</button>
+  </div>
+  <div class="reader-viewport" id="readerViewport">
+    <img class="reader-img" id="readerImg" alt="Page reading view" draggable="false">
+  </div>
+</div>
 
-                loader.style.display = 'none';
-                fb.style.display = 'block';
+<script>
+/* ==========================================================
+   SHM MODERN FLIPBOOK
+   Put magaz.pdf in the same folder as this HTML file.
+   ========================================================== */
+let PDF_FILE = null;
+const RENDER_SCALE = Math.min(2.5, Math.max(1.5, window.devicePixelRatio || 2));
 
-                // ফাস্ট রেন্ডারিং ফাংশন
-                async function renderPage(num) {
-                    try {
-                        const p = await pdf.getPage(num);
-                        const canvas = document.createElement('canvas');
-                        canvas.width = vp.width; canvas.height = vp.height;
-                        await p.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-                        
-                        const img = document.getElementById(`pimg-${num}`);
-                        if(img) {
-                            // কোয়ালিটি 80% করে মেমরি কমানো হয়েছে (0.8)
-                            img.src = canvas.toDataURL('image/jpeg', 0.8);
-                            img.style.opacity = '1';
-                        }
-                    } catch(e) { console.log(e); }
-                }
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-                // প্রথম ২টা পেজ সবার আগে লোড হবে
-                await renderPage(1);
-                if(totalPages >= 2) await renderPage(2);
+const $ = id => document.getElementById(id);
+const stage = $("stage");
+const bookWrap = $("bookWrap");
+const pageNow = $("pageNow");
+const pageTotal = $("pageTotal");
+const zoomSlider = $("zoomSlider");
+const zoomLabel = $("zoomLabel");
+const statusText = $("statusText");
+const tip = $("tip");
 
-                // বাকি পেজগুলো প্যারালালি ব্যাকগ্রাউন্ডে লোড হবে ব্রাউজারকে ফ্রি রেখে
-                for (let i = 3; i <= totalPages; i++) {
-                    await new Promise(r => setTimeout(r, 80)); 
-                    renderPage(i); // await ছাড়া কল করায় এটি ব্যাকগ্রাউন্ডে দ্রুত কাজ করবে
-                }
+let pdf = null;
+let pages = [];
+let current = 0;
+let zoom = 1;
+let bookW = 500;
+let bookH = 700;
+let flipBusy = false;
 
-            } catch (error) {
-                loadText.innerText = "Error loading PDF.";
-                document.querySelector('.spinner').style.display = 'none';
-            }
-        }
+/* ---------- PDF rendering ---------- */
+async function loadPDF(){
+  statusText.textContent = "Loading PDF…";
+  const task = pdfjsLib.getDocument(PDF_FILE);
+  pdf = await task.promise;
+  pageTotal.textContent = pdf.numPages;
+  if(!pdf.numPages) throw new Error("PDF has no pages.");
 
-        loadFastFlipbook();
-    </script>
+  const first = await pdf.getPage(1);
+  const vp = first.getViewport({scale:1});
+  const ratio = vp.width / vp.height;
+
+  for(let i=1;i<=pdf.numPages;i++){
+    statusText.textContent = `Rendering ${i} / ${pdf.numPages}`;
+    const p = await pdf.getPage(i);
+    const viewport = p.getViewport({scale:RENDER_SCALE});
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await p.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+    pages.push({canvas,ratio});
+  }
+
+  $("fileName").textContent = PDF_FILE;
+  statusText.textContent = `${pdf.numPages} pages`;
+  buildBook();
+  showTip();
+}
+
+/* ---------- Responsive book size ---------- */
+function calculateSize(){
+  const mobile = innerWidth < 760;
+  const availableW = Math.max(260, innerWidth - (mobile ? 18 : 70));
+  const availableH = Math.max(280, innerHeight - (mobile ? 145 : 175));
+  const ratio = pages[0]?.ratio || 0.714;
+
+  let h = availableH;
+  let w = h * ratio * (mobile ? 1 : 2);
+
+  if(w > availableW){
+    w = availableW;
+    h = w / (ratio * (mobile ? 1 : 2));
+  }
+
+  if(mobile){
+    bookW = Math.max(230, w);
+    bookH = Math.max(320, h);
+  }else{
+    bookW = Math.max(250, w/2);
+    bookH = Math.max(350, h);
+  }
+}
+
+/* ---------- Book renderer ---------- */
+function makePage(index, side){
+  if(index < 0 || index >= pages.length) return null;
+  const el = document.createElement("div");
+  el.className = `page ${side || ""}`;
+  const c = pages[index].canvas.cloneNode(true);
+  el.appendChild(c);
+  return el;
+}
+
+function buildBook(){
+  calculateSize();
+  bookWrap.innerHTML = "";
+
+  const book = document.createElement("div");
+  book.className = "book";
+  book.id = "book";
+  bookWrap.appendChild(book);
+
+  const mobile = innerWidth < 760;
+
+  if(mobile){
+    const p = makePage(current,"single");
+    if(p){
+      p.style.width = `${bookW}px`;
+      p.style.height = `${bookH}px`;
+      book.appendChild(p);
+    }
+  }else{
+    const leftIndex = current % 2 === 0 ? current : current-1;
+    const rightIndex = leftIndex + 1;
+
+    const left = makePage(leftIndex,"left");
+    const right = makePage(rightIndex,"right");
+
+    if(left){
+      left.style.width = `${bookW}px`;
+      left.style.height = `${bookH}px`;
+      book.appendChild(left);
+    }
+    if(right){
+      right.style.width = `${bookW}px`;
+      right.style.height = `${bookH}px`;
+      book.appendChild(right);
+    }
+
+    const spine = document.createElement("div");
+    spine.className = "spine";
+    book.appendChild(spine);
+  }
+
+  bookWrap.style.transform = `scale(${zoom})`;
+  updateControls();
+}
+
+/* ---------- Smooth page-turn animation ---------- */
+function turn(direction){
+  if(flipBusy || !pages.length) return;
+
+  const mobile = innerWidth < 760;
+  const step = mobile ? 1 : 2;
+  const target = direction > 0 ? current + step : current - step;
+  if(target < 0 || target >= pages.length) return;
+
+  flipBusy = true;
+
+  const book = $("book");
+  if(!book){ flipBusy=false; return; }
+
+  const currentSideIndex = mobile ? current : (direction > 0 ? current + 1 : current);
+  const nextSideIndex = mobile ? target : (direction > 0 ? target : target + 1);
+
+  const oldCanvas = pages[currentSideIndex]?.canvas;
+  const newCanvas = pages[nextSideIndex]?.canvas;
+
+  if(!oldCanvas || !newCanvas){
+    current = target;
+    buildBook();
+    flipBusy=false;
+    return;
+  }
+
+  const flip = document.createElement("div");
+  flip.className = `flip-page ${direction > 0 ? "right":"left"} active`;
+  const front = document.createElement("div");
+  const back = document.createElement("div");
+  front.className = "flip-face";
+  back.className = "flip-face back";
+
+  const fc = oldCanvas.cloneNode(true);
+  const bc = newCanvas.cloneNode(true);
+  front.appendChild(fc);
+  back.appendChild(bc);
+  flip.append(front,back);
+  book.appendChild(flip);
+
+  const half = mobile ? bookW : bookW;
+  flip.style.width = `${half}px`;
+  flip.style.height = `${bookH}px`;
+
+  const angle = direction > 0 ? -180 : 180;
+  requestAnimationFrame(()=>{
+    flip.style.transition = "transform .72s cubic-bezier(.22,.75,.2,1)";
+    flip.style.transform = `rotateY(${angle}deg)`;
+  });
+
+  flip.addEventListener("transitionend",()=>{
+    current = target;
+    buildBook();
+    flipBusy=false;
+  },{once:true});
+}
+
+/* ---------- Navigation ---------- */
+function goFirst(){ if(current!==0){current=0;buildBook()} }
+function goLast(){ if(current!==pages.length-1){current=pages.length-1;buildBook()} }
+function updateControls(){
+  pageNow.textContent = current + 1;
+  $("prevBtn").disabled = current <= 0;
+  $("firstBtn").disabled = current <= 0;
+  $("nextBtn").disabled = current >= pages.length-1;
+  $("lastBtn").disabled = current >= pages.length-1;
+  zoomLabel.textContent = Math.round(zoom*100)+"%";
+  zoomSlider.value = Math.round(zoom*100);
+}
+
+/* ---------- Zoom ---------- */
+function setZoom(v){
+  zoom = Math.max(.7,Math.min(1.8,v));
+  bookWrap.style.transform = `scale(${zoom})`;
+  updateControls();
+}
+zoomSlider.addEventListener("input",e=>setZoom(+e.target.value/100));
+$("zoomIn").onclick=()=>setZoom(zoom+.1);
+$("zoomOut").onclick=()=>setZoom(zoom-.1);
+
+/* Wheel zoom */
+stage.addEventListener("wheel",e=>{
+  if($("reader").classList.contains("open")) return;
+  e.preventDefault();
+  setZoom(zoom + (e.deltaY < 0 ? .08 : -.08));
+},{passive:false});
+
+/* ---------- Mouse/touch corner interaction ---------- */
+let pointerStart=null;
+stage.addEventListener("pointerdown",e=>{
+  if(e.target.closest("button,input")) return;
+  pointerStart={x:e.clientX,y:e.clientY};
+  stage.setPointerCapture?.(e.pointerId);
+});
+stage.addEventListener("pointerup",e=>{
+  if(!pointerStart) return;
+  const dx=e.clientX-pointerStart.x;
+  const dy=Math.abs(e.clientY-pointerStart.y);
+  pointerStart=null;
+  if(Math.abs(dx)>45 && dy<100) turn(dx<0?1:-1);
+});
+
+/* ---------- Double click reading mode ---------- */
+bookWrap.addEventListener("dblclick",e=>{
+  const page = e.target.closest(".page");
+  if(!page) return;
+  const canvas = page.querySelector("canvas");
+  if(canvas) openReader(canvas);
+});
+
+/* ---------- Reading / magnifier mode ---------- */
+const reader=$("reader"), readerViewport=$("readerViewport"), readerImg=$("readerImg");
+let rScale=1,rX=0,rY=0,rDrag=false,rStart={x:0,y:0},rPan={x:0,y:0};
+
+function applyReader(){
+  rScale=Math.max(1,Math.min(6,rScale));
+  if(rScale<=1){rX=0;rY=0}
+  readerImg.style.transform=`translate3d(${rX}px,${rY}px,0) scale(${rScale})`;
+  $("readerPct").textContent=Math.round(rScale*100)+"%";
+}
+function openReader(canvas){
+  readerImg.src=canvas.toDataURL("image/jpeg",.94);
+  rScale=1;rX=0;rY=0;applyReader();
+  reader.classList.add("open");
+}
+function closeReader(){reader.classList.remove("open")}
+function readerZoom(v){rScale=Math.max(1,Math.min(6,v));applyReader()}
+
+$("readerBtn").onclick=()=>{
+  const canvas=$("book")?.querySelector(".page canvas");
+  if(canvas) openReader(canvas);
+};
+$("readerClose").onclick=closeReader;
+$("readerIn").onclick=()=>readerZoom(rScale+.5);
+$("readerOut").onclick=()=>readerZoom(rScale-.5);
+$("readerReset").onclick=()=>{rScale=1;rX=0;rY=0;applyReader()};
+
+readerViewport.addEventListener("wheel",e=>{
+  e.preventDefault();
+  readerZoom(rScale+(e.deltaY<0?.25:-.25));
+},{passive:false});
+
+readerViewport.addEventListener("pointerdown",e=>{
+  if(rScale<=1)return;
+  rDrag=true;rStart={x:e.clientX,y:e.clientY};rPan={x:rX,y:rY};
+  readerViewport.classList.add("dragging");
+  readerViewport.setPointerCapture?.(e.pointerId);
+});
+readerViewport.addEventListener("pointermove",e=>{
+  if(!rDrag)return;
+  rX=rPan.x+(e.clientX-rStart.x);
+  rY=rPan.y+(e.clientY-rStart.y);
+  applyReader();
+});
+readerViewport.addEventListener("pointerup",()=>{
+  rDrag=false;readerViewport.classList.remove("dragging");
+});
+readerImg.addEventListener("dblclick",()=>readerZoom(rScale>1?1:2.5));
+
+/* ---------- Fullscreen ---------- */
+$("fullscreenBtn").onclick=()=>{
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+  else document.exitFullscreen?.();
+};
+
+/* ---------- Buttons ---------- */
+$("firstBtn").onclick=goFirst;
+$("lastBtn").onclick=goLast;
+$("prevBtn").onclick=()=>turn(-1);
+$("nextBtn").onclick=()=>turn(1);
+
+/* ---------- Keyboard ---------- */
+document.addEventListener("keydown",e=>{
+  if(reader.classList.contains("open")){
+    if(e.key==="Escape")closeReader();
+    if(e.key==="+"||e.key==="=")readerZoom(rScale+.5);
+    if(e.key==="-")readerZoom(rScale-.5);
+    return;
+  }
+  if(e.key==="ArrowRight"||e.key==="PageDown")turn(1);
+  if(e.key==="ArrowLeft"||e.key==="PageUp")turn(-1);
+  if(e.key==="Home")goFirst();
+  if(e.key==="End")goLast();
+  if(e.key==="+"||e.key==="=")setZoom(zoom+.1);
+  if(e.key==="-")setZoom(zoom-.1);
+  if(e.key==="f")$("fullscreenBtn").click();
+});
+
+/* ---------- Tip ---------- */
+function showTip(){
+  tip.classList.add("show");
+  setTimeout(()=>tip.classList.remove("show"),6000);
+}
+
+/* ---------- Resize ---------- */
+let resizeTimer;
+addEventListener("resize",()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>pages.length&&buildBook(),180);
+});
+
+/* ---------- Start ---------- */
+(async()=>{
+  try{
+    await 
+const pdfPicker = document.getElementById("pdfPicker");
+if(pdfPicker){
+  pdfPicker.addEventListener("change", async e=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    if(file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")){
+      showError("Please select a PDF file.");
+      return;
+    }
+    const buffer = await file.arrayBuffer();
+    document.title = `${file.name} — SHM Flipbook`;
+    const nameEl = document.getElementById("pdfFileName");
+    if(nameEl) nameEl.textContent = file.name;
+    await loadPDF(buffer);
+  });
+}
+
+loadPDF();
+  }catch(err){
+    console.error(err);
+    bookWrap.innerHTML=`
+      <div class="message">
+        <div>
+          <div class="icon">📄</div>
+          <h2>Could not open ${PDF_FILE}</h2>
+          <p>Place <b>${PDF_FILE}</b> in the same folder as this HTML file.
+          If you are using GitHub Pages, check that the filename and letter case match exactly.</p>
+        </div>
+      </div>`;
+    statusText.textContent="PDF error";
+  }
+})();
+</script>
 </body>
 </html>
