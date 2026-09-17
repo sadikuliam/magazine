@@ -84,7 +84,10 @@
     position:relative;
     padding:20px;
     min-height:0;
+    overflow:hidden;
   }
+
+  .stage.panning{ cursor:grabbing !important; }
 
   #book-slot{
     display:flex;
@@ -428,8 +431,32 @@ async function renderPdfToPages(url) {
 let storedPageEls = null;
 let currentPageIndexBeforeResize = 0;
 let liveZoomScale = 1;
+let liveZoomPanX = 0;
+let liveZoomPanY = 0;
+let liveZoomDragging = false;
+let liveZoomDragStart = { x: 0, y: 0 };
+let liveZoomPanStart = { x: 0, y: 0 };
 const LIVE_ZOOM_MIN = 0.6;
 const LIVE_ZOOM_MAX = 2.2;
+
+function applyLiveZoomTransform() {
+  if (liveZoomScale <= 1.02) {
+    liveZoomPanX = 0;
+    liveZoomPanY = 0;
+  } else {
+    // Keep panning within reasonable bounds so the book can't be dragged
+    // completely out of view.
+    const stageEl = document.querySelector(".stage");
+    const stageRect = stageEl.getBoundingClientRect();
+    const extraW = (bookSlot.offsetWidth * liveZoomScale - stageRect.width) / 2;
+    const extraH = (bookSlot.offsetHeight * liveZoomScale - stageRect.height) / 2;
+    const maxX = Math.max(0, extraW) / liveZoomScale;
+    const maxY = Math.max(0, extraH) / liveZoomScale;
+    liveZoomPanX = Math.min(maxX, Math.max(-maxX, liveZoomPanX));
+    liveZoomPanY = Math.min(maxY, Math.max(-maxY, liveZoomPanY));
+  }
+  bookSlot.style.transform = `scale(${liveZoomScale}) translate(${liveZoomPanX}px, ${liveZoomPanY}px)`;
+}
 
 function buildFlipbook(pageEls, startPage) {
   const size = computeBookSize();
@@ -437,6 +464,8 @@ function buildFlipbook(pageEls, startPage) {
   // Any slider-driven rebuild starts fresh — the live wheel-zoom transform
   // is separate and would otherwise compound with the new book size.
   liveZoomScale = 1;
+  liveZoomPanX = 0;
+  liveZoomPanY = 0;
   bookSlot.style.transform = "";
 
   // Fresh container every time — the library's destroy() removes the
@@ -546,9 +575,50 @@ function bindControls() {
     e.preventDefault();
     const step = e.deltaY < 0 ? 0.1 : -0.1;
     liveZoomScale = Math.min(LIVE_ZOOM_MAX, Math.max(LIVE_ZOOM_MIN, liveZoomScale + step));
-    bookSlot.style.transform = `scale(${liveZoomScale})`;
+    applyLiveZoomTransform();
     zoomSlider.value = Math.round(liveZoomScale * 100);
   }, { passive: false });
+
+  // Click-and-drag to pan the book up/down/left/right once zoomed in.
+  // Captured before the flipbook's own click-to-flip handling so the two
+  // don't fight — panning only takes over once you're actually zoomed.
+  function stagePointerDown(x, y, ev) {
+    if (liveZoomScale <= 1.02) return; // not zoomed: let normal page-flip clicks through
+    liveZoomDragging = true;
+    stageEl.classList.add("panning");
+    bookSlot.style.transition = "none";
+    liveZoomDragStart = { x, y };
+    liveZoomPanStart = { x: liveZoomPanX, y: liveZoomPanY };
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  function stagePointerMove(x, y) {
+    if (!liveZoomDragging) return;
+    liveZoomPanX = liveZoomPanStart.x + (x - liveZoomDragStart.x);
+    liveZoomPanY = liveZoomPanStart.y + (y - liveZoomDragStart.y);
+    applyLiveZoomTransform();
+  }
+  function stagePointerUp() {
+    liveZoomDragging = false;
+    stageEl.classList.remove("panning");
+    bookSlot.style.transition = "";
+  }
+
+  stageEl.addEventListener("mousedown", (e) => stagePointerDown(e.clientX, e.clientY, e), { capture: true });
+  window.addEventListener("mousemove", (e) => stagePointerMove(e.clientX, e.clientY));
+  window.addEventListener("mouseup", stagePointerUp);
+
+  stageEl.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) stagePointerDown(e.touches[0].clientX, e.touches[0].clientY, e);
+  }, { capture: true, passive: false });
+  stageEl.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 1 && liveZoomDragging) {
+      stagePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault();
+    }
+  }, { passive: false });
+  stageEl.addEventListener("touchend", stagePointerUp);
+  stageEl.addEventListener("touchcancel", stagePointerUp);
 
   setTimeout(() => { hint.style.opacity = "0"; }, 5000);
 }
