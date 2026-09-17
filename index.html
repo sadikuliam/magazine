@@ -37,40 +37,11 @@
             display: inline-block;
         }
 
-        /* --- dFlip থিম কাস্টমাইজেশন --- */
-        .df-lightbox-wrapper, .df-container { 
-            background-color: #e9ecef !important; 
-        }
-        .df-ui-controls { 
-            background-color: #2c3e50 !important;
-            box-shadow: 0 -4px 15px rgba(0,0,0,0.2) !important;
-        }
-        .df-ui-btn, .df-ui-page-info { color: #ffffff !important; }
-        .df-ui-btn:hover { 
-            background-color: #34495e !important; 
-            color: #f1c40f !important; 
-        }
-        .df-ui-btn.df-ui-close { 
-            color: #ffffff !important; 
-            background-color: transparent !important; 
-        }
-        .df-ui-btn.df-ui-close:hover { color: #e74c3c !important; }
-
-        /* --- লোগো যুক্ত করার কাস্টম CSS --- */
-        .df-ui-wrapper::before {
-            content: "";
-            /* আপনার দেওয়া Cloudinary লোগো লিংকটি এখানে বসানো হয়েছে */
-            background-image: url('https://res.cloudinary.com/ewu5hckc/image/upload/v1789571686/cj5cuzsoopx1xap136ax.png'); 
-            background-size: contain;
-            background-repeat: no-repeat;
-            position: absolute;
-            top: 20px; 
-            left: 20px; 
-            width: 150px; /* লোগোটি খুব বড় বা ছোট দেখালে এই মানটি পরিবর্তন করতে পারেন */
-            height: 50px; /* লোগোর উচ্চতা অ্যাডজাস্ট করতে চাইলে এটি পরিবর্তন করুন */
-            z-index: 99999; 
-            pointer-events: none; 
-        }
+        .df-lightbox-wrapper, .df-container { background-color: #f4f4f4 !important; }
+        .df-ui-controls { background-color: #f4f4f4 !important; box-shadow: 0 -2px 10px rgba(0,0,0,0.05) !important;}
+        .df-ui-btn, .df-ui-page-info { color: #333333 !important; }
+        .df-ui-btn:hover { background-color: #e6e6e6 !important; }
+        .df-ui-btn.df-ui-close { color: #333333 !important; background-color: transparent !important; }
     </style>
 </head>
 <body>
@@ -83,13 +54,9 @@
             pdfRenderQuality: 2,
             maxZoom: 6,
             webgl: true, 
-            backgroundColor: "#e9ecef", 
+            backgroundColor: "#f4f4f4", 
             pageMode: 1,
-            soundEnable: true,
-            hideControls: "download,print", 
-            autoPlay: true,          
-            autoPlayDuration: 3000,  
-            autoPlayStart: true      
+            soundEnable: true // পেজ উল্টানোর সাউন্ড চালু করা হলো
         };
     </script>
 
