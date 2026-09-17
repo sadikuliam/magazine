@@ -355,33 +355,49 @@ async function renderPdfToPages(url) {
   return pageEls;
 }
 
-function initFlipbook(pageEls) {
+let storedPageEls = null;
+let currentPageIndexBeforeResize = 0;
+
+function buildFlipbook(pageEls, startPage) {
   const size = computeBookSize();
 
   pageFlip = new St.PageFlip(bookContainer, {
-    width: size.width,
-    height: size.height,
-    size: "stretch",
-    minWidth: 220,
-    maxWidth: 1400,
-    minHeight: 300,
-    maxHeight: 1800,
+    width: Math.round(size.width),
+    height: Math.round(size.height),
+    size: "fixed",
+    autoSize: false,
     maxShadowOpacity: 0.5,
     showCover: false,
     mobileScrollSupport: true,
     useMouseEvents: true,
     flippingTime: 700,
+    startPage: startPage || 0,
     usePortrait: window.innerWidth < 760
   });
 
   pageFlip.loadFromHTML(pageEls);
 
-  pageFlip.on("flip", (e) => updateIndicator(e.data));
-  updateIndicator(0);
+  pageFlip.on("flip", (e) => {
+    currentPageIndexBeforeResize = e.data;
+    updateIndicator(e.data);
+  });
+  updateIndicator(startPage || 0);
+}
 
+function initFlipbook(pageEls) {
+  storedPageEls = pageEls;
+  buildFlipbook(pageEls, 0);
+
+  let resizeTimer = null;
   window.addEventListener("resize", () => {
-    const s = computeBookSize();
-    pageFlip.update();
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const keepPage = currentPageIndexBeforeResize;
+      if (pageFlip) {
+        pageFlip.destroy();
+      }
+      buildFlipbook(storedPageEls, keepPage);
+    }, 250);
   });
 }
 
@@ -411,9 +427,11 @@ function bindControls() {
   const zoomSlider = document.getElementById("zoomSlider");
   const applyZoom = (val) => {
     zoomFactor = val / 100;
-    const size = computeBookSize();
-    bookContainer.style.transform = `scale(1)`;
-    pageFlip.update();
+    const keepPage = currentPageIndexBeforeResize;
+    if (pageFlip) {
+      pageFlip.destroy();
+    }
+    buildFlipbook(storedPageEls, keepPage);
   };
 
   zoomSlider.addEventListener("input", (e) => applyZoom(e.target.value));
