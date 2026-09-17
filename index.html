@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SHM Premium Flipbook</title>
+    <title>SHM Fast Premium Flipbook</title>
     
     <style>
         :root {
@@ -30,7 +30,6 @@
             align-items: center;
             position: relative;
         }
-        /* Flipbook Styles */
         .flip-book {
             box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
             display: none;
@@ -39,13 +38,19 @@
             background-color: white;
             border: solid 1px rgba(0,0,0,0.1);
             overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         .page canvas {
             width: 100%;
             height: 100%;
             object-fit: contain;
         }
-        /* Loader */
+        .page-loader {
+            color: #9aa5b5;
+            font-size: 14px;
+        }
         .loader-container {
             text-align: center;
             position: absolute;
@@ -61,10 +66,7 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
-        .loader-text {
-            font-size: 16px;
-            color: #9aa5b5;
-        }
+        .loader-text { font-size: 16px; color: #9aa5b5; }
     </style>
 </head>
 <body>
@@ -72,7 +74,7 @@
     <div class="container">
         <div id="loading" class="loader-container">
             <div class="spinner"></div>
-            <div id="loader-text" class="loader-text">Loading PDF...</div>
+            <div id="loader-text" class="loader-text">Opening Book...</div>
         </div>
         
         <div id="flipbook" class="flip-book">
@@ -80,33 +82,38 @@
         </div>
     </div>
 
-    <!-- PDF.js (To render PDF pages to images) -->
+    <!-- PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    
-    <!-- StPageFlip (World-class page turning library) -->
+    <!-- StPageFlip -->
     <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.min.js"></script>
 
     <script>
-        // আপনার গিটহাবে থাকা PDF ফাইলের নাম
         const pdfUrl = 'magaz.pdf'; 
-        
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         async function renderFlipbook() {
             try {
                 const loading = document.getElementById('loading');
-                const loaderText = document.getElementById('loader-text');
                 const flipbookEl = document.getElementById('flipbook');
 
-                // PDF লোড করা হচ্ছে
+                // পিডিএফ এর ডেটা লোড করা হচ্ছে
                 const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
                 const numPages = pdf.numPages;
 
-                // PDF এর ডাইমেনশন বোঝার জন্য প্রথম পেজ লোড করা
+                // বইয়ের আকার নির্ধারণের জন্য শুধু প্রথম পেজ পড়া
                 const firstPage = await pdf.getPage(1);
-                const viewport = firstPage.getViewport({ scale: 1.5 }); // High Resolution
+                const viewport = firstPage.getViewport({ scale: 1.5 });
 
-                // StPageFlip কনফিগারেশন
+                // সাথে সাথে সবগুলো পেজের জন্য খালি জায়গা (Placeholder) তৈরি করা
+                for (let i = 1; i <= numPages; i++) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'page';
+                    pageDiv.id = `page-${i}`;
+                    pageDiv.innerHTML = `<div class="page-loader">Loading page...</div>`;
+                    flipbookEl.appendChild(pageDiv);
+                }
+
+                // StPageFlip চালু করা
                 const pageFlip = new St.PageFlip(flipbookEl, {
                     width: viewport.width,
                     height: viewport.height,
@@ -120,36 +127,55 @@
                     mobileScrollSupport: false
                 });
 
-                // প্রতিটি পেজ ক্যানভাসে রেন্ডার করা
-                const pages = [];
-                for (let i = 1; i <= numPages; i++) {
-                    loaderText.innerText = `Rendering page ${i} of ${numPages}...`;
-                    
-                    const page = await pdf.getPage(i);
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-
-                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-                    const pageDiv = document.createElement('div');
-                    pageDiv.className = 'page';
-                    pageDiv.appendChild(canvas);
-                    flipbookEl.appendChild(pageDiv);
-                }
-
-                // লোডিং স্ক্রিন বন্ধ করে ফ্লিপবুক চালু করা
+                // ফ্লিপবুকটি সাথে সাথে স্ক্রিনে দেখিয়ে দেওয়া হচ্ছে
                 loading.style.display = 'none';
                 flipbookEl.style.display = 'block';
-
-                // HTML এলিমেন্ট থেকে ফ্লিপবুক তৈরি
                 pageFlip.loadFromHTML(document.querySelectorAll('.page'));
+
+                // একটি নির্দিষ্ট পেজ রেন্ডার করার ফাংশন
+                async function renderPageToCanvas(pageNum) {
+                    try {
+                        const page = await pdf.getPage(pageNum);
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        
+                        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                        
+                        const pageDiv = document.getElementById(`page-${pageNum}`);
+                        if(pageDiv) {
+                            pageDiv.innerHTML = ''; 
+                            pageDiv.appendChild(canvas);
+                        }
+                    } catch (e) {
+                        console.error(`Error rendering page ${pageNum}`, e);
+                    }
+                }
+
+                // ব্যবহারকারী যেন সাথে সাথে পড়তে পারে তাই প্রথম ৩টি পেজ দ্রুত লোড করা হচ্ছে
+                await renderPageToCanvas(1);
+                if(numPages >= 2) await renderPageToCanvas(2);
+                if(numPages >= 3) await renderPageToCanvas(3);
+
+                // বাকি পেজগুলো ব্যাকগ্রাউন্ডে ধীরে ধীরে লোড হবে, এতে ব্রাউজার স্লো হবে না
+                let currentPageToRender = 4;
+                function renderNextPage() {
+                    if (currentPageToRender <= numPages) {
+                        renderPageToCanvas(currentPageToRender).then(() => {
+                            currentPageToRender++;
+                            setTimeout(renderNextPage, 150); // ব্রাউজারকে বিশ্রাম দেওয়ার জন্য ছোট বিরতি
+                        });
+                    }
+                }
+                
+                if(numPages >= 4) {
+                    renderNextPage();
+                }
 
             } catch (error) {
                 console.error("PDF Loading Error:", error);
-                document.getElementById('loader-text').innerText = "Error loading magaz.pdf. Check console for details.";
+                document.getElementById('loader-text').innerText = "Error loading PDF.";
                 document.querySelector('.spinner').style.display = 'none';
             }
         }
