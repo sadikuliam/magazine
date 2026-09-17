@@ -2,402 +2,1840 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
 <title>Magazine Flipbook</title>
 
+<meta name="description" content="Fast PDF Magazine Flipbook Reader">
+<meta name="theme-color" content="#111827">
+
+<!-- PageFlip CSS -->
 <style>
-  :root{
-    --ink:#1c1a17;
-    --paper:#f6f2ea;
-    --paper-dark:#e9e2d3;
-    --accent:#8a3b2b;
-    --accent-soft:#c98a6f;
-    --shadow: rgba(20,15,10,0.35);
-  }
-  *{box-sizing:border-box;}
-  html,body{
-    margin:0; padding:0; height:100%;
-    background: radial-gradient(ellipse at 50% -10%, #2a2621 0%, #14110e 60%, #0c0a08 100%);
-    color:var(--paper);
-    font-family: "Iowan Old Style","Palatino Linotype",Georgia,serif;
+:root{
+    --bg:#0b1020;
+    --panel:#111827;
+    --panel2:#172033;
+    --text:#f8fafc;
+    --muted:#94a3b8;
+    --accent:#3b82f6;
+    --accent2:#8b5cf6;
+    --danger:#ef4444;
+    --shadow:0 20px 60px rgba(0,0,0,.35);
+}
+
+*{
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+
+html,
+body{
+    margin:0;
+    padding:0;
+    width:100%;
+    height:100%;
     overflow:hidden;
-  }
-  #app{
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    height:100%; width:100%; position:relative;
-  }
+    background:
+        radial-gradient(circle at top left, rgba(59,130,246,.13), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(139,92,246,.14), transparent 30%),
+        var(--bg);
+    color:var(--text);
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+}
 
-  /* --- Header --- */
-  #topbar{
-    position:absolute; top:0; left:0; right:0;
-    display:flex; align-items:center; justify-content:space-between;
-    padding:14px 22px;
-    font-size:13px; letter-spacing:.04em;
-    color:#cfc6b5;
-    z-index:20;
-    pointer-events:none;
-  }
-  #topbar .title{ font-style:italic; opacity:.85; }
-  #topbar .controls{ pointer-events:auto; display:flex; gap:10px; }
-  .iconbtn{
-    background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.15);
-    color:#f1ead9;
-    width:34px;height:34px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    cursor:pointer; font-size:15px; transition:background .15s ease, transform .15s ease;
-  }
-  .iconbtn:hover{ background:rgba(255,255,255,0.16); transform:translateY(-1px); }
+body{
+    display:flex;
+    flex-direction:column;
+}
 
-  /* --- Loading state --- */
-  #loading{
-    position:absolute; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; gap:14px; z-index:30;
-    transition:opacity .4s ease;
-  }
-  #loading .ring{
-    width:38px;height:38px;border-radius:50%;
-    border:2px solid rgba(255,255,255,0.15);
-    border-top-color:var(--accent-soft);
-    animation:spin 0.9s linear infinite;
-  }
-  #loading .msg{ font-size:13px; color:#bfb6a4; letter-spacing:.03em; }
-  #loading .pct{ font-size:11px; color:#8a8071; }
-  @keyframes spin{ to{ transform:rotate(360deg); } }
+/* ================================
+   HEADER
+================================ */
 
-  /* --- Book stage --- */
-  #stage{
-    position:relative;
-    display:flex; align-items:center; justify-content:center;
-    width:100%; height:100%;
-  }
-  #book{
-    box-shadow: 0 30px 80px var(--shadow);
-  }
-  .page-content{
-    width:100%; height:100%;
-    background:var(--paper);
-    display:flex; align-items:center; justify-content:center;
+.topbar{
+    height:64px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:8px 14px;
+    background:rgba(10,15,30,.92);
+    border-bottom:1px solid rgba(255,255,255,.07);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    z-index:100;
+}
+
+.brand{
+    min-width:0;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+
+.brand-icon{
+    width:42px;
+    height:42px;
+    flex:0 0 42px;
+    border-radius:12px;
+    display:grid;
+    place-items:center;
+    font-size:20px;
+    background:
+        linear-gradient(135deg,var(--accent),var(--accent2));
+    box-shadow:
+        0 8px 25px rgba(59,130,246,.28);
+}
+
+.brand-text{
+    min-width:0;
+}
+
+.brand-title{
+    font-size:16px;
+    font-weight:800;
+    white-space:nowrap;
     overflow:hidden;
-  }
-  .page-content canvas{
-    max-width:100%; max-height:100%; display:block;
-  }
-  .page-content.blank{
-    background: linear-gradient(135deg, var(--paper) 0%, var(--paper-dark) 100%);
-  }
-  .page-number{
-    position:absolute; bottom:6px; width:100%; text-align:center;
-    font-size:10px; color:#8a7f6a; letter-spacing:.08em;
-  }
+    text-overflow:ellipsis;
+}
 
-  /* --- Bottom bar --- */
-  #bottombar{
-    position:absolute; bottom:18px; left:0; right:0;
-    display:flex; align-items:center; justify-content:center; gap:18px;
-    z-index:20;
-  }
-  #pageIndicator{
-    font-size:12px; color:#cfc6b5; min-width:70px; text-align:center; letter-spacing:.03em;
-  }
-  #progressTrack{
-    width:min(40vw, 320px); height:3px; background:rgba(255,255,255,0.12); border-radius:2px; overflow:hidden;
+.brand-sub{
+    color:var(--muted);
+    font-size:11px;
+    margin-top:2px;
+}
+
+.toolbar{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    flex-wrap:nowrap;
+}
+
+.tool-btn{
+    width:40px;
+    height:40px;
+    border:0;
+    outline:0;
+    border-radius:11px;
+    color:#fff;
+    background:rgba(255,255,255,.07);
     cursor:pointer;
-  }
-  #progressFill{
-    height:100%; width:0%; background:var(--accent-soft); transition:width .25s ease;
-  }
+    display:grid;
+    place-items:center;
+    font-size:18px;
+    transition:
+        transform .16s ease,
+        background .16s ease,
+        opacity .16s ease;
+}
 
-  .navzone{
-    position:absolute; top:0; bottom:0; width:14%; z-index:15;
-    cursor:pointer; background:transparent; border:none;
-  }
-  .navzone.left{ left:0; }
-  .navzone.right{ right:0; }
+.tool-btn:hover{
+    background:rgba(255,255,255,.14);
+}
 
-  @media (max-width:700px){
-    #topbar .title{ display:none; }
-    #progressTrack{ width:48vw; }
-  }
+.tool-btn:active{
+    transform:scale(.93);
+}
+
+.tool-btn:disabled{
+    opacity:.35;
+    cursor:not-allowed;
+}
+
+.page-indicator{
+    min-width:92px;
+    height:40px;
+    padding:0 10px;
+    border-radius:11px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#dbeafe;
+    background:rgba(59,130,246,.10);
+    border:1px solid rgba(59,130,246,.20);
+    font-size:13px;
+    font-weight:700;
+}
+
+/* ================================
+   READING AREA
+================================ */
+
+.reader{
+    position:relative;
+    flex:1;
+    min-height:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    padding:10px;
+}
+
+/* subtle background */
+.reader::before{
+    content:"";
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    background:
+        linear-gradient(
+            90deg,
+            transparent 0,
+            rgba(255,255,255,.02) 50%,
+            transparent 100%
+        );
+}
+
+/* ================================
+   BOOK
+================================ */
+
+.book-container{
+    position:relative;
+    width:min(96vw,1500px);
+    height:min(90vh,1100px);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+#book{
+    position:relative;
+    width:100%;
+    height:100%;
+}
+
+.page{
+    background:#fff;
+    overflow:hidden;
+    box-shadow:
+        0 0 0 1px rgba(0,0,0,.08),
+        0 12px 35px rgba(0,0,0,.20);
+}
+
+.page canvas{
+    display:block;
+    width:100%;
+    height:100%;
+    background:#fff;
+}
+
+/* page loading */
+.page-loading{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:12px;
+    color:#64748b;
+    background:
+        linear-gradient(
+            135deg,
+            #f8fafc,
+            #e2e8f0
+        );
+}
+
+.spinner{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    border:3px solid #cbd5e1;
+    border-top-color:#3b82f6;
+    animation:spin .75s linear infinite;
+}
+
+@keyframes spin{
+    to{
+        transform:rotate(360deg);
+    }
+}
+
+.page-loading small{
+    font-size:11px;
+}
+
+/* ================================
+   CENTER LOADER
+================================ */
+
+.loading-screen{
+    position:absolute;
+    inset:0;
+    z-index:50;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:
+        radial-gradient(
+            circle at center,
+            rgba(15,23,42,.72),
+            rgba(2,6,23,.96)
+        );
+    transition:
+        opacity .35s ease,
+        visibility .35s ease;
+}
+
+.loading-screen.hidden{
+    opacity:0;
+    visibility:hidden;
+    pointer-events:none;
+}
+
+.loader-box{
+    width:min(90%,380px);
+    padding:28px 24px;
+    border-radius:20px;
+    text-align:center;
+    background:rgba(17,24,39,.95);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:var(--shadow);
+}
+
+.loader-spinner{
+    width:52px;
+    height:52px;
+    margin:0 auto 16px;
+    border-radius:50%;
+    border:4px solid rgba(255,255,255,.12);
+    border-top-color:#60a5fa;
+    animation:spin .75s linear infinite;
+}
+
+.loader-title{
+    font-size:18px;
+    font-weight:800;
+}
+
+.loader-message{
+    margin-top:7px;
+    font-size:13px;
+    line-height:1.5;
+    color:#94a3b8;
+}
+
+.progress-wrap{
+    margin-top:18px;
+}
+
+.progress-bar{
+    height:6px;
+    overflow:hidden;
+    border-radius:99px;
+    background:rgba(255,255,255,.08);
+}
+
+.progress-fill{
+    width:0;
+    height:100%;
+    border-radius:99px;
+    background:
+        linear-gradient(
+            90deg,
+            #3b82f6,
+            #8b5cf6
+        );
+    transition:width .15s linear;
+}
+
+/* ================================
+   BOTTOM BAR
+================================ */
+
+.bottom-bar{
+    height:44px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:14px;
+    padding:5px 10px;
+    background:rgba(10,15,30,.94);
+    border-top:1px solid rgba(255,255,255,.07);
+    color:#94a3b8;
+    font-size:11px;
+    z-index:100;
+}
+
+.status{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+
+.status-dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#22c55e;
+    box-shadow:0 0 10px rgba(34,197,94,.65);
+}
+
+/* ================================
+   ERROR
+================================ */
+
+.error-screen{
+    position:absolute;
+    inset:0;
+    z-index:60;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    background:rgba(2,6,23,.96);
+}
+
+.error-screen.show{
+    display:flex;
+}
+
+.error-box{
+    max-width:520px;
+    width:100%;
+    text-align:center;
+    padding:30px 22px;
+    border-radius:20px;
+    background:#111827;
+    border:1px solid rgba(239,68,68,.25);
+    box-shadow:var(--shadow);
+}
+
+.error-icon{
+    width:54px;
+    height:54px;
+    margin:0 auto 15px;
+    display:grid;
+    place-items:center;
+    border-radius:50%;
+    background:rgba(239,68,68,.12);
+    font-size:25px;
+}
+
+.error-title{
+    font-size:20px;
+    font-weight:800;
+}
+
+.error-message{
+    margin-top:9px;
+    color:#94a3b8;
+    font-size:13px;
+    line-height:1.6;
+}
+
+.error-actions{
+    margin-top:18px;
+    display:flex;
+    justify-content:center;
+    gap:9px;
+    flex-wrap:wrap;
+}
+
+.error-btn{
+    border:0;
+    cursor:pointer;
+    border-radius:10px;
+    padding:10px 15px;
+    font-weight:700;
+    color:#fff;
+    background:#2563eb;
+}
+
+/* ================================
+   MOBILE
+================================ */
+
+@media(max-width:700px){
+
+    .topbar{
+        height:58px;
+        padding:7px 9px;
+    }
+
+    .brand-icon{
+        width:37px;
+        height:37px;
+        flex-basis:37px;
+        border-radius:10px;
+    }
+
+    .brand-title{
+        font-size:14px;
+    }
+
+    .brand-sub{
+        display:none;
+    }
+
+    .toolbar{
+        gap:5px;
+    }
+
+    .tool-btn{
+        width:36px;
+        height:36px;
+        border-radius:9px;
+        font-size:16px;
+    }
+
+    .page-indicator{
+        min-width:70px;
+        height:36px;
+        font-size:11px;
+    }
+
+    .reader{
+        padding:5px;
+    }
+
+    .book-container{
+        width:100%;
+        height:100%;
+    }
+
+    .bottom-bar{
+        height:40px;
+        font-size:10px;
+    }
+}
+
+@media(max-width:430px){
+
+    .tool-btn:nth-child(1),
+    .tool-btn:nth-child(2){
+        display:none;
+    }
+
+    .page-indicator{
+        min-width:65px;
+    }
+}
+
+/* prevent selection while dragging */
+#book,
+#book *{
+    user-select:none;
+    -webkit-user-select:none;
+}
+
+/* smoother touch */
+#book{
+    touch-action:pan-y;
+}
 </style>
 </head>
+
 <body>
 
-<div id="app">
+<!-- ================================
+     HEADER
+================================ -->
 
-  <div id="topbar">
-    <div class="title">Magazine · Flipbook</div>
-    <div class="controls">
-      <button class="iconbtn" id="zoomOutBtn" title="Zoom out">&minus;</button>
-      <button class="iconbtn" id="zoomInBtn" title="Zoom in">+</button>
-      <button class="iconbtn" id="fullscreenBtn" title="Fullscreen">&#x26F6;</button>
+<header class="topbar">
+
+    <div class="brand">
+        <div class="brand-icon">📖</div>
+
+        <div class="brand-text">
+            <div class="brand-title">
+                Magazine Flipbook
+            </div>
+
+            <div class="brand-sub">
+                Fast PDF Reader
+            </div>
+        </div>
     </div>
-  </div>
 
-  <div id="loading">
-    <div class="ring"></div>
-    <div class="msg" id="loadingMsg">Opening magazine…</div>
-    <div class="pct" id="loadingPct"></div>
-  </div>
 
-  <div id="stage">
-    <button class="navzone left" id="navLeft" aria-label="Previous page"></button>
-    <div id="book"></div>
-    <button class="navzone right" id="navRight" aria-label="Next page"></button>
-  </div>
+    <div class="toolbar">
 
-  <div id="bottombar">
-    <div id="pageIndicator">– / –</div>
-    <div id="progressTrack"><div id="progressFill"></div></div>
-  </div>
+        <button
+            class="tool-btn"
+            id="prevBtn"
+            title="Previous page"
+            aria-label="Previous page">
+            ‹
+        </button>
 
-</div>
+        <div
+            class="page-indicator"
+            id="pageIndicator">
+            1 / —
+        </div>
 
-<!-- PDF.js (renders your PDF pages to canvas) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<!-- page-flip (the realistic page turning effect) -->
-<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+        <button
+            class="tool-btn"
+            id="nextBtn"
+            title="Next page"
+            aria-label="Next page">
+            ›
+        </button>
 
-<script>
-/* ======================================================================
-   CONFIG — this is the only line you should need to change.
-   Point it at the raw GitHub URL of your PDF, e.g.:
-   "https://raw.githubusercontent.com/USERNAME/REPO/main/magaz.pdf"
-   ====================================================================== */
-const PDF_URL = "magaz.pdf"; // <-- put your raw GitHub PDF URL here
+        <button
+            class="tool-btn"
+            id="fullscreenBtn"
+            title="Fullscreen"
+            aria-label="Fullscreen">
+            ⛶
+        </button>
 
-/* Rendering config tuned for speed */
-const FIRST_PAGES_FAST = 4;      // pages rendered immediately, low-res, so the book opens instantly
-const FAST_SCALE = 0.55;         // low-res pass (loads fast)
-const FULL_SCALE = 1.35;         // high-res pass (loads in background)
-const RENDER_AHEAD = 2;          // how many pages ahead/behind to keep hi-res ready
-/* ====================================================================== */
+        <button
+            class="tool-btn"
+            id="openPdfBtn"
+            title="Open PDF"
+            aria-label="Open PDF">
+            ↗
+        </button>
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    </div>
 
-const loadingEl = document.getElementById('loading');
-const loadingMsg = document.getElementById('loadingMsg');
-const loadingPct = document.getElementById('loadingPct');
-const bookEl = document.getElementById('book');
-const pageIndicator = document.getElementById('pageIndicator');
-const progressFill = document.getElementById('progressFill');
-const progressTrack = document.getElementById('progressTrack');
+</header>
+
+
+<!-- ================================
+     READER
+================================ -->
+
+<main class="reader" id="reader">
+
+    <div class="book-container" id="bookContainer">
+
+        <div id="book"></div>
+
+    </div>
+
+
+    <!-- Loading -->
+    <div
+        class="loading-screen"
+        id="loadingScreen">
+
+        <div class="loader-box">
+
+            <div class="loader-spinner"></div>
+
+            <div
+                class="loader-title"
+                id="loaderTitle">
+                Loading magazine...
+            </div>
+
+            <div
+                class="loader-message"
+                id="loaderMessage">
+                Preparing fast reader
+            </div>
+
+            <div class="progress-wrap">
+
+                <div class="progress-bar">
+
+                    <div
+                        class="progress-fill"
+                        id="progressFill">
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Error -->
+    <div
+        class="error-screen"
+        id="errorScreen">
+
+        <div class="error-box">
+
+            <div class="error-icon">
+                ⚠️
+            </div>
+
+            <div class="error-title">
+                Magazine could not be loaded
+            </div>
+
+            <div
+                class="error-message"
+                id="errorMessage">
+
+                Please make sure <b>magaz.pdf</b>
+                exists in the same GitHub folder as this
+                index.html file.
+            </div>
+
+            <div class="error-actions">
+
+                <button
+                    class="error-btn"
+                    id="retryBtn">
+                    Retry
+                </button>
+
+                <button
+                    class="error-btn"
+                    id="errorOpenBtn">
+                    Open PDF
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</main>
+
+
+<!-- ================================
+     FOOTER
+================================ -->
+
+<footer class="bottom-bar">
+
+    <div class="status">
+        <span class="status-dot"></span>
+        <span id="statusText">
+            Ready
+        </span>
+    </div>
+
+    <div>
+        Drag corners or use ← →
+    </div>
+
+</footer>
+
+
+<!-- ==============================================
+     PAGE FLIP 2.0.7
+================================================ -->
+
+<script
+src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js">
+</script>
+
+
+<!-- ==============================================
+     APPLICATION
+     PDF.js 6.3.289
+================================================ -->
+
+<script type="module">
+
+import * as pdfjsLib
+from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.min.mjs";
+
+
+/* ==============================================
+   CONFIG
+================================================ */
+
+const PDF_URL = "./magaz.pdf";
+
+const PDF_WORKER =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/6.3.289/pdf.worker.min.mjs";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER;
+
+
+/*
+    Rendering quality.
+
+    1.00  = fastest
+    1.25  = balanced
+    1.50  = sharper
+*/
+const RENDER_SCALE = 1.25;
+
+
+/*
+    Number of pages rendered around
+    the currently visible page.
+*/
+const PRELOAD_DISTANCE = 2;
+
+
+/* ==============================================
+   DOM
+================================================ */
+
+const book =
+    document.getElementById("book");
+
+const reader =
+    document.getElementById("reader");
+
+const loadingScreen =
+    document.getElementById("loadingScreen");
+
+const loaderTitle =
+    document.getElementById("loaderTitle");
+
+const loaderMessage =
+    document.getElementById("loaderMessage");
+
+const progressFill =
+    document.getElementById("progressFill");
+
+const errorScreen =
+    document.getElementById("errorScreen");
+
+const errorMessage =
+    document.getElementById("errorMessage");
+
+const pageIndicator =
+    document.getElementById("pageIndicator");
+
+const statusText =
+    document.getElementById("statusText");
+
+const prevBtn =
+    document.getElementById("prevBtn");
+
+const nextBtn =
+    document.getElementById("nextBtn");
+
+const fullscreenBtn =
+    document.getElementById("fullscreenBtn");
+
+const openPdfBtn =
+    document.getElementById("openPdfBtn");
+
+const retryBtn =
+    document.getElementById("retryBtn");
+
+const errorOpenBtn =
+    document.getElementById("errorOpenBtn");
+
+
+/* ==============================================
+   STATE
+================================================ */
 
 let pdfDoc = null;
+
 let pageFlip = null;
+
 let totalPages = 0;
-let hiResDone = new Set();
-let pageAspect = 1.4142; // A4-ish default until we know real size
 
-function setLoading(msg, pct){
-  loadingMsg.textContent = msg;
-  loadingPct.textContent = pct != null ? pct + '%' : '';
+let currentPage = 0;
+
+let firstPageWidth = 595;
+
+let firstPageHeight = 842;
+
+let renderStates = [];
+
+let loadingTask = null;
+
+let initialized = false;
+
+
+/* ==============================================
+   BASIC HELPERS
+================================================ */
+
+function setStatus(text){
+    statusText.textContent = text;
 }
 
-async function renderPageToCanvas(pageNum, scale){
-  const page = await pdfDoc.getPage(pageNum);
-  const viewport = page.getViewport({ scale });
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext('2d');
-  await page.render({ canvasContext: ctx, viewport }).promise;
-  return canvas;
-}
 
-function makePageDiv(innerNode, num){
-  const div = document.createElement('div');
-  div.className = 'page-content';
-  div.dataset.pageNum = num;
-  if (innerNode) div.appendChild(innerNode);
-  const label = document.createElement('div');
-  label.className = 'page-number';
-  label.textContent = num;
-  div.appendChild(label);
-  return div;
-}
+function setLoading(
+    title,
+    message,
+    progress = null
+){
+    loaderTitle.textContent = title;
 
-async function upgradePage(num){
-  if (hiResDone.has(num) || num < 1 || num > totalPages) return;
-  hiResDone.add(num);
-  try{
-    const canvas = await renderPageToCanvas(num, FULL_SCALE);
-    const target = bookEl.querySelector('.page-content[data-page-num="'+num+'"]');
-    if (target){
-      const old = target.querySelector('canvas');
-      canvas.style.opacity = 0;
-      target.insertBefore(canvas, target.firstChild);
-      requestAnimationFrame(()=>{ canvas.style.transition='opacity .25s ease'; canvas.style.opacity=1; });
-      if (old) setTimeout(()=> old.remove(), 260);
+    loaderMessage.textContent = message;
+
+    if(progress !== null){
+        progressFill.style.width =
+            `${Math.max(0, Math.min(100, progress))}%`;
     }
-  } catch(e){ console.warn('hi-res render failed for page', num, e); }
 }
 
-function upgradeAround(centerIndex){
-  for (let d=-RENDER_AHEAD; d<=RENDER_AHEAD; d++){
-    upgradePage(centerIndex + 1 + d);
-  }
+
+function showLoading(){
+    loadingScreen.classList.remove("hidden");
 }
 
-function updateIndicator(){
-  const idx = pageFlip.getCurrentPageIndex();
-  const shown = Math.min(idx+1, totalPages);
-  pageIndicator.textContent = shown + ' / ' + totalPages;
-  progressFill.style.width = ((idx+1)/totalPages*100) + '%';
+
+function hideLoading(){
+    loadingScreen.classList.add("hidden");
 }
 
-async function init(){
-  try{
-    setLoading('Fetching magazine…', null);
-    const loadingTask = pdfjsLib.getDocument({ url: PDF_URL });
-    loadingTask.onProgress = (p)=>{
-      if (p.total){
-        const pct = Math.round((p.loaded/p.total)*100);
-        setLoading('Downloading pages…', pct);
-      }
-    };
-    pdfDoc = await loadingTask.promise;
-    totalPages = pdfDoc.numPages;
 
-    // Get aspect ratio from page 1 so the book frame is sized correctly.
-    const firstPage = await pdfDoc.getPage(1);
-    const vp = firstPage.getViewport({ scale: 1 });
-    pageAspect = vp.height / vp.width;
+function showError(message){
 
-    setLoading('Rendering first pages…', 0);
+    errorMessage.innerHTML =
+        message;
 
-    // Fast pass: render just enough pages to open the book immediately.
-    const fastCount = Math.min(FIRST_PAGES_FAST, totalPages);
-    const fastCanvases = [];
-    for (let i=1; i<=fastCount; i++){
-      fastCanvases.push(await renderPageToCanvas(i, FAST_SCALE));
-      setLoading('Rendering first pages…', Math.round(i/fastCount*100));
+    errorScreen.classList.add("show");
+
+    hideLoading();
+}
+
+
+function hideError(){
+    errorScreen.classList.remove("show");
+}
+
+
+function clamp(value,min,max){
+    return Math.max(min,Math.min(max,value));
+}
+
+
+/* ==============================================
+   CREATE PAGE PLACEHOLDERS
+================================================ */
+
+function createPageElements(){
+
+    book.innerHTML = "";
+
+    const fragment =
+        document.createDocumentFragment();
+
+    for(let i = 0; i < totalPages; i++){
+
+        const page =
+            document.createElement("div");
+
+        page.className = "page";
+
+        page.dataset.page =
+            String(i);
+
+        /*
+            Cover pages get hard density.
+            This gives a more realistic magazine feel.
+        */
+        if(i === 0 || i === totalPages - 1){
+            page.dataset.density = "hard";
+        }
+
+        const loading =
+            document.createElement("div");
+
+        loading.className =
+            "page-loading";
+
+        loading.innerHTML = `
+            <div class="spinner"></div>
+            <small>Loading page ${i + 1}</small>
+        `;
+
+        page.appendChild(loading);
+
+        fragment.appendChild(page);
     }
 
-    // Build DOM pages: real content for the fast-rendered ones, lightweight
-    // placeholders for the rest (rendered on demand as the reader flips).
-    for (let i=1; i<=totalPages; i++){
-      let div;
-      if (i <= fastCount){
-        div = makePageDiv(fastCanvases[i-1], i);
-      } else {
-        div = makePageDiv(null, i);
-        div.classList.add('blank');
-      }
-      bookEl.appendChild(div);
+    book.appendChild(fragment);
+}
+
+
+/* ==============================================
+   RENDER ONE PDF PAGE
+================================================ */
+
+async function renderPage(index){
+
+    if(
+        index < 0 ||
+        index >= totalPages
+    ){
+        return;
     }
 
-    sizeBook();
+    if(renderStates[index] === "done"){
+        return;
+    }
 
-    pageFlip = new St.PageFlip(bookEl, {
-      width: 500,
-      height: Math.round(500 * pageAspect),
-      size: 'stretch',
-      minWidth: 280,
-      maxWidth: 1200,
-      minHeight: 360,
-      maxHeight: 1600,
-      showCover: true,
-      maxShadowOpacity: 0.5,
-      mobileScrollSupport: true,
-      usePortrait: window.innerWidth < 800,
-      flippingTime: 650
+    if(renderStates[index] === "rendering"){
+        return;
+    }
+
+    renderStates[index] = "rendering";
+
+    try{
+
+        const page =
+            await pdfDoc.getPage(index + 1);
+
+        /*
+            Render a little higher than CSS display size.
+            This keeps text and images sharp without
+            rendering at extreme resolution.
+        */
+        const viewport =
+            page.getViewport({
+                scale: RENDER_SCALE
+            });
+
+        const canvas =
+            document.createElement("canvas");
+
+        const context =
+            canvas.getContext(
+                "2d",
+                {
+                    alpha:false,
+                    willReadFrequently:false
+                }
+            );
+
+        canvas.width =
+            Math.ceil(viewport.width);
+
+        canvas.height =
+            Math.ceil(viewport.height);
+
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.display = "block";
+
+        context.imageSmoothingEnabled = true;
+
+        await page.render({
+            canvasContext:context,
+            viewport:viewport,
+            intent:"display"
+        }).promise;
+
+        const pageElement =
+            book.querySelector(
+                `.page[data-page="${index}"]`
+            );
+
+        if(pageElement){
+
+            pageElement.innerHTML = "";
+
+            pageElement.appendChild(canvas);
+        }
+
+        renderStates[index] = "done";
+
+    }catch(error){
+
+        console.error(
+            "Page rendering error:",
+            index + 1,
+            error
+        );
+
+        renderStates[index] = "error";
+
+        const pageElement =
+            book.querySelector(
+                `.page[data-page="${index}"]`
+            );
+
+        if(pageElement){
+
+            pageElement.innerHTML = `
+                <div class="page-loading">
+                    <div style="font-size:28px">⚠️</div>
+                    <small>
+                        Unable to render page ${index + 1}
+                    </small>
+                </div>
+            `;
+        }
+    }
+}
+
+
+/* ==============================================
+   PRELOAD NEARBY PAGES
+================================================ */
+
+async function preloadAround(index){
+
+    const pages = [];
+
+    /*
+        Current page first.
+        Then nearby pages.
+    */
+    pages.push(index);
+
+    for(
+        let distance = 1;
+        distance <= PRELOAD_DISTANCE;
+        distance++
+    ){
+
+        pages.push(index + distance);
+
+        pages.push(index - distance);
+    }
+
+    /*
+        Keep only valid pages.
+    */
+    const valid =
+        pages.filter(
+            p => p >= 0 && p < totalPages
+        );
+
+    /*
+        Render sequentially so the browser is not
+        flooded with a huge number of PDF render jobs.
+    */
+    for(const p of valid){
+
+        await renderPage(p);
+
+    }
+}
+
+
+/* ==============================================
+   UPDATE UI
+================================================ */
+
+function updateUI(){
+
+    if(!pageFlip){
+        return;
+    }
+
+    currentPage =
+        pageFlip.getCurrentPageIndex();
+
+    /*
+        Page number starts from 1 for readers.
+    */
+    const displayPage =
+        clamp(
+            currentPage + 1,
+            1,
+            totalPages
+        );
+
+    pageIndicator.textContent =
+        `${displayPage} / ${totalPages}`;
+
+    prevBtn.disabled =
+        currentPage <= 0;
+
+    nextBtn.disabled =
+        currentPage >= totalPages - 1;
+
+    setStatus(
+        `Page ${displayPage} of ${totalPages}`
+    );
+}
+
+
+/* ==============================================
+   INITIALIZE FLIPBOOK
+================================================ */
+
+async function initializeFlipbook(){
+
+    /*
+        Get first page to determine actual PDF
+        page dimensions.
+    */
+    const firstPage =
+        await pdfDoc.getPage(1);
+
+    const firstViewport =
+        firstPage.getViewport({
+            scale:1
+        });
+
+    firstPageWidth =
+        firstViewport.width;
+
+    firstPageHeight =
+        firstViewport.height;
+
+
+    /*
+        Create placeholders for all PDF pages.
+        Only nearby pages are actually rasterized.
+    */
+    createPageElements();
+
+
+    /*
+        Destroy previous instance if retrying.
+    */
+    if(pageFlip){
+
+        try{
+            pageFlip.destroy();
+        }catch(_){}
+
+        pageFlip = null;
+    }
+
+
+    /*
+        PageFlip requires a base width/height.
+        PDF dimensions provide a natural ratio.
+    */
+
+    pageFlip =
+        new St.PageFlip(
+            book,
+            {
+                width:Math.round(firstPageWidth),
+                height:Math.round(firstPageHeight),
+
+                size:"stretch",
+
+                minWidth:250,
+                maxWidth:900,
+
+                minHeight:350,
+                maxHeight:1300,
+
+                drawShadow:true,
+
+                maxShadowOpacity:.28,
+
+                flippingTime:520,
+
+                usePortrait:true,
+
+                startZIndex:5,
+
+                autoSize:true,
+
+                showCover:true,
+
+                mobileScrollSupport:true
+
+            }
+        );
+
+
+    /*
+        Listen BEFORE loading HTML pages.
+    */
+    pageFlip.on(
+        "flip",
+        async function(event){
+
+            currentPage =
+                event.data;
+
+            updateUI();
+
+            /*
+                Render current page and nearby pages
+                after turn.
+            */
+            preloadAround(currentPage);
+
+        }
+    );
+
+
+    pageFlip.on(
+        "changeOrientation",
+        function(){
+
+            updateUI();
+
+        }
+    );
+
+
+    pageFlip.on(
+        "init",
+        function(){
+
+            updateUI();
+
+        }
+    );
+
+
+    /*
+        Load page elements into PageFlip.
+    */
+    pageFlip.loadFromHTML(
+        document.querySelectorAll(
+            ".page"
+        )
+    );
+
+
+    initialized = true;
+
+
+    updateUI();
+
+
+    /*
+        First page must appear immediately.
+    */
+    await renderPage(0);
+
+
+    /*
+        Second page is important for desktop
+        two-page viewing.
+    */
+    if(totalPages > 1){
+        await renderPage(1);
+    }
+
+
+    /*
+        Continue nearby loading without blocking UI.
+    */
+    requestAnimationFrame(() => {
+
+        preloadAround(
+            pageFlip.getCurrentPageIndex()
+        );
+
     });
-
-    pageFlip.loadFromHTML(document.querySelectorAll('#book .page-content'));
-
-    pageFlip.on('flip', (e)=>{
-      updateIndicator();
-      upgradeAround(e.data);
-      renderPlaceholderIfNeeded(e.data);
-    });
-
-    updateIndicator();
-    upgradeAround(0);
-
-    // Render remaining pages lazily, lowest priority, in the background
-    // so the reader never waits — pages just get sharper as you go.
-    backgroundFillRemaining(fastCount);
-
-    loadingEl.style.opacity = 0;
-    setTimeout(()=> loadingEl.style.display='none', 400);
-
-  } catch(err){
-    console.error(err);
-    setLoading('Could not load the PDF. Check PDF_URL in the code.', null);
-  }
 }
 
-async function renderPlaceholderIfNeeded(centerIndex){
-  const num = centerIndex + 1;
-  const div = bookEl.querySelector('.page-content[data-page-num="'+num+'"]');
-  if (div && div.classList.contains('blank') && !div.querySelector('canvas')){
-    div.classList.remove('blank');
-    const canvas = await renderPageToCanvas(num, FAST_SCALE);
-    div.insertBefore(canvas, div.firstChild);
-    hiResDone.delete(num);
-    upgradePage(num);
-  }
-}
 
-async function backgroundFillRemaining(startAfter){
-  for (let i=startAfter+1; i<=totalPages; i++){
-    const div = bookEl.querySelector('.page-content[data-page-num="'+i+'"]');
-    if (div && !div.querySelector('canvas')){
-      try{
-        const canvas = await renderPageToCanvas(i, FAST_SCALE);
-        div.classList.remove('blank');
-        div.insertBefore(canvas, div.firstChild);
-      } catch(e){ /* ignore, will retry on flip */ }
+/* ==============================================
+   LOAD PDF
+================================================ */
+
+async function loadPDF(){
+
+    hideError();
+
+    showLoading();
+
+    initialized = false;
+
+    setLoading(
+        "Loading magazine...",
+        "Connecting to PDF",
+        8
+    );
+
+    setStatus(
+        "Loading PDF..."
+    );
+
+
+    try{
+
+        /*
+            Cleanup previous PDF if needed.
+        */
+        if(pdfDoc){
+
+            try{
+                await pdfDoc.destroy();
+            }catch(_){}
+
+            pdfDoc = null;
+        }
+
+
+        /*
+            Query parameter prevents a stale PDF
+            after you replace magaz.pdf on GitHub.
+        */
+        const pdfURL =
+            PDF_URL +
+            "?v=" +
+            Date.now();
+
+
+        loadingTask =
+            pdfjsLib.getDocument({
+
+                url:pdfURL,
+
+                /*
+                    Streaming/range loading helps large PDFs.
+                */
+                disableStream:false,
+
+                disableAutoFetch:false,
+
+                rangeChunkSize:65536,
+
+                /*
+                    Keep network traffic focused.
+                */
+                useWorkerFetch:true,
+
+                isOffscreenCanvasSupported:true
+
+            });
+
+
+        /*
+            Download progress.
+        */
+        loadingTask.onProgress =
+            function(progress){
+
+                if(
+                    progress &&
+                    progress.total
+                ){
+
+                    const percent =
+                        8 +
+                        (
+                            progress.loaded /
+                            progress.total
+                        ) * 62;
+
+                    setLoading(
+                        "Downloading magazine...",
+                        `${Math.round(percent)}%`,
+                        percent
+                    );
+                }
+                else{
+
+                    setLoading(
+                        "Downloading magazine...",
+                        "Receiving PDF...",
+                        20
+                    );
+
+                }
+            };
+
+
+        pdfDoc =
+            await loadingTask.promise;
+
+
+        totalPages =
+            pdfDoc.numPages;
+
+
+        if(!totalPages){
+
+            throw new Error(
+                "PDF contains no pages."
+            );
+        }
+
+
+        setLoading(
+            "Preparing pages...",
+            `${totalPages} pages detected`,
+            72
+        );
+
+
+        renderStates =
+            new Array(totalPages)
+                .fill("idle");
+
+
+        await initializeFlipbook();
+
+
+        setLoading(
+            "Ready",
+            "Starting magazine reader...",
+            100
+        );
+
+
+        /*
+            Give the first rendered pages a tiny moment
+            to paint before hiding loader.
+        */
+        setTimeout(
+            () => {
+
+                hideLoading();
+
+                setStatus(
+                    `Ready • ${totalPages} pages`
+                );
+
+            },
+            180
+        );
+
+
+    }catch(error){
+
+        console.error(
+            "PDF loading error:",
+            error
+        );
+
+
+        let message =
+            "Could not load <b>magaz.pdf</b>.";
+
+
+        if(
+            error &&
+            error.message
+        ){
+
+            message +=
+                `<br><br>${error.message}`;
+        }
+
+
+        message +=
+            `<br><br>
+             Make sure <b>magaz.pdf</b>
+             and <b>index.html</b>
+             are in the same GitHub Pages folder.`;
+
+
+        showError(
+            message
+        );
+
+        setStatus(
+            "PDF loading failed"
+        );
     }
-    await new Promise(r=>setTimeout(r, 30)); // yield to keep UI smooth
-  }
 }
 
-function sizeBook(){
-  const maxH = window.innerHeight * 0.82;
-  const maxW = window.innerWidth * 0.9;
-  let h = maxH;
-  let w = h / pageAspect;
-  if (w * 2 > maxW){ w = maxW/2; h = w*pageAspect; }
-  bookEl.style.width = Math.round(w*2)+'px';
-  bookEl.style.height = Math.round(h)+'px';
+
+/* ==============================================
+   NAVIGATION
+================================================ */
+
+function previousPage(){
+
+    if(
+        !pageFlip ||
+        currentPage <= 0
+    ){
+        return;
+    }
+
+    pageFlip.flipPrev(
+        "bottom"
+    );
 }
 
-window.addEventListener('resize', ()=>{ sizeBook(); if(pageFlip) pageFlip.updateSize(); });
 
-document.getElementById('navLeft').addEventListener('click', ()=> pageFlip && pageFlip.flipPrev());
-document.getElementById('navRight').addEventListener('click', ()=> pageFlip && pageFlip.flipNext());
-document.addEventListener('keydown', (e)=>{
-  if (!pageFlip) return;
-  if (e.key === 'ArrowLeft') pageFlip.flipPrev();
-  if (e.key === 'ArrowRight') pageFlip.flipNext();
-});
+function nextPage(){
 
-let currentZoom = 1;
-document.getElementById('zoomInBtn').addEventListener('click', ()=>{
-  currentZoom = Math.min(currentZoom + 0.15, 2);
-  bookEl.style.transform = 'scale('+currentZoom+')';
-});
-document.getElementById('zoomOutBtn').addEventListener('click', ()=>{
-  currentZoom = Math.max(currentZoom - 0.15, 0.6);
-  bookEl.style.transform = 'scale('+currentZoom+')';
-});
-document.getElementById('fullscreenBtn').addEventListener('click', ()=>{
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-  else document.exitFullscreen?.();
-});
+    if(
+        !pageFlip ||
+        currentPage >= totalPages - 1
+    ){
+        return;
+    }
 
-progressTrack.addEventListener('click', (e)=>{
-  if (!pageFlip) return;
-  const rect = progressTrack.getBoundingClientRect();
-  const ratio = (e.clientX - rect.left) / rect.width;
-  const target = Math.max(0, Math.min(totalPages-1, Math.round(ratio * (totalPages-1))));
-  pageFlip.flip(target);
-});
+    pageFlip.flipNext(
+        "bottom"
+    );
+}
 
-init();
+
+/* ==============================================
+   FULLSCREEN
+================================================ */
+
+async function toggleFullscreen(){
+
+    try{
+
+        if(!document.fullscreenElement){
+
+            await reader.requestFullscreen();
+
+        }else{
+
+            await document.exitFullscreen();
+
+        }
+
+    }catch(error){
+
+        console.warn(
+            "Fullscreen unavailable:",
+            error
+        );
+    }
+}
+
+
+/* ==============================================
+   OPEN ORIGINAL PDF
+================================================ */
+
+function openOriginalPDF(){
+
+    window.open(
+        PDF_URL,
+        "_blank",
+        "noopener,noreferrer"
+    );
+}
+
+
+/* ==============================================
+   BUTTON EVENTS
+================================================ */
+
+prevBtn.addEventListener(
+    "click",
+    previousPage
+);
+
+nextBtn.addEventListener(
+    "click",
+    nextPage
+);
+
+fullscreenBtn.addEventListener(
+    "click",
+    toggleFullscreen
+);
+
+openPdfBtn.addEventListener(
+    "click",
+    openOriginalPDF
+);
+
+retryBtn.addEventListener(
+    "click",
+    loadPDF
+);
+
+errorOpenBtn.addEventListener(
+    "click",
+    openOriginalPDF
+);
+
+
+/* ==============================================
+   KEYBOARD
+================================================ */
+
+window.addEventListener(
+    "keydown",
+    function(event){
+
+        /*
+            Do not hijack browser shortcuts.
+        */
+        if(
+            event.ctrlKey ||
+            event.metaKey ||
+            event.altKey
+        ){
+            return;
+        }
+
+
+        switch(event.key){
+
+            case "ArrowLeft":
+                event.preventDefault();
+                previousPage();
+                break;
+
+
+            case "ArrowRight":
+                event.preventDefault();
+                nextPage();
+                break;
+
+
+            case "Home":
+
+                if(pageFlip){
+
+                    event.preventDefault();
+
+                    pageFlip.turnToPage(0);
+
+                    updateUI();
+
+                    preloadAround(0);
+                }
+
+                break;
+
+
+            case "End":
+
+                if(pageFlip){
+
+                    event.preventDefault();
+
+                    const last =
+                        totalPages - 1;
+
+                    pageFlip.turnToPage(
+                        last
+                    );
+
+                    updateUI();
+
+                    preloadAround(last);
+                }
+
+                break;
+
+
+            case "f":
+            case "F":
+
+                /*
+                    Don't activate fullscreen while typing.
+                */
+                if(
+                    document.activeElement &&
+                    (
+                        document.activeElement.tagName ===
+                        "INPUT" ||
+                        document.activeElement.tagName ===
+                        "TEXTAREA"
+                    )
+                ){
+                    return;
+                }
+
+                toggleFullscreen();
+
+                break;
+        }
+
+    }
+);
+
+
+/* ==============================================
+   TOUCH / DOUBLE TAP
+================================================ */
+
+let lastTap = 0;
+
+reader.addEventListener(
+    "touchend",
+    function(){
+
+        const now =
+            Date.now();
+
+        if(
+            now - lastTap < 300
+        ){
+
+            toggleFullscreen();
+
+        }
+
+        lastTap = now;
+
+    },
+    {
+        passive:true
+    }
+);
+
+
+/* ==============================================
+   WINDOW RESIZE
+================================================ */
+
+let resizeTimer = null;
+
+window.addEventListener(
+    "resize",
+    function(){
+
+        clearTimeout(
+            resizeTimer
+        );
+
+        resizeTimer =
+            setTimeout(
+                function(){
+
+                    if(
+                        pageFlip
+                    ){
+
+                        try{
+
+                            pageFlip.update();
+
+                        }catch(_){}
+
+                    }
+
+                },
+                180
+            );
+
+    }
+);
+
+
+/* ==============================================
+   VISIBILITY OPTIMIZATION
+================================================ */
+
+document.addEventListener(
+    "visibilitychange",
+    function(){
+
+        if(
+            document.hidden
+        ){
+
+            setStatus(
+                "Paused"
+            );
+
+        }else{
+
+            updateUI();
+
+        }
+
+    }
+);
+
+
+/* ==============================================
+   START
+================================================ */
+
+loadPDF();
+
 </script>
+
 </body>
 </html>
