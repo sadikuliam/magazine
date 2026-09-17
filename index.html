@@ -48,20 +48,19 @@
 </head>
 <body>
 
-    <!-- dFlip সেটিংস (সংশোধিত: ফাস্ট লোডিংয়ের জন্য) -->
+    <!-- dFlip সেটিংস -->
     <script>
         var dFlipLocation = "https://cdn.jsdelivr.net/npm/dflip/"; 
         var dFlip = dFlip || {};
         dFlip.defaults = {
-            pdfRenderQuality: 1.2, // জুম কোয়ালিটি অপ্টিমাইজ করা হয়েছে দ্রুত লোডের জন্য
-            webgl: true, // গ্রাফিক্স হার্ডওয়্যার ব্যবহারের জন্য চালু করা হয়েছে
-            backgroundColor: "#f4f4f4", // লাইট থিম
-            pageMode: 1 // মোবাইলে অটো সিঙ্গেল পেজ
+            pdfRenderQuality: 1.5, // জুম করার পর স্পষ্ট দেখার জন্য 1.2 থেকে বাড়িয়ে 1.5 করা হয়েছে
+            webgl: true, // দ্রুত লোডিংয়ের জন্য চালু রাখা হয়েছে
+            backgroundColor: "#f4f4f4", 
+            pageMode: 1 
         };
     </script>
 
     <!-- PDF লোড হওয়ার পপ-আপ বাটন -->
-    <!-- লক্ষ রাখবেন: আপনার PDF ফাইলটি যদি 'magazine' ফোল্ডারের ভেতরে থাকে, তবে source="magazine/magazine.pdf" দেবেন। -->
     <div class="_df_button read-btn" source="magaz.pdf">ম্যাগাজিন পড়ুন</div>
 
     <!-- স্ক্রিপ্ট ফাইলগুলো -->
