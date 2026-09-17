@@ -561,6 +561,7 @@ function closeZoomOverlay() {
 }
 
 function applyOverlayTransform() {
+  clampOverlayPan();
   zoomImage.style.transform = `translate(${overlayPanX}px, ${overlayPanY}px) scale(${overlayScale})`;
   zoomOverlayPct.textContent = Math.round(overlayScale * 100) + "%";
   zoomViewport.classList.toggle("zoomed", overlayScale > 1);
@@ -570,9 +571,44 @@ function applyOverlayTransform() {
   }
 }
 
+function clampOverlayPan() {
+  if (overlayScale <= 1) { overlayPanX = 0; overlayPanY = 0; return; }
+  const vpRect = zoomViewport.getBoundingClientRect();
+  const imgRect = zoomImage.getBoundingClientRect();
+  // Natural (unscaled) rendered size of the image at scale 1
+  const baseW = imgRect.width / overlayScale;
+  const baseH = imgRect.height / overlayScale;
+  const scaledW = baseW * overlayScale;
+  const scaledH = baseH * overlayScale;
+  const maxX = Math.max(0, (scaledW - vpRect.width) / 2);
+  const maxY = Math.max(0, (scaledH - vpRect.height) / 2);
+  overlayPanX = Math.min(maxX, Math.max(-maxX, overlayPanX));
+  overlayPanY = Math.min(maxY, Math.max(-maxY, overlayPanY));
+}
+
 function setOverlayScale(newScale) {
   overlayScale = Math.min(OVERLAY_MAX_SCALE, Math.max(OVERLAY_MIN_SCALE, newScale));
   applyOverlayTransform();
+}
+
+function startOverlayDrag(x, y) {
+  if (overlayScale <= 1) return;
+  overlayDragging = true;
+  zoomViewport.classList.add("dragging");
+  overlayDragStart = { x, y };
+  overlayPanStart = { x: overlayPanX, y: overlayPanY };
+}
+
+function moveOverlayDrag(x, y) {
+  if (!overlayDragging) return;
+  overlayPanX = overlayPanStart.x + (x - overlayDragStart.x);
+  overlayPanY = overlayPanStart.y + (y - overlayDragStart.y);
+  applyOverlayTransform();
+}
+
+function endOverlayDrag() {
+  overlayDragging = false;
+  zoomViewport.classList.remove("dragging");
 }
 
 function bindZoomOverlay() {
@@ -593,26 +629,30 @@ function bindZoomOverlay() {
     setOverlayScale(overlayScale + delta);
   }, { passive: false });
 
-  // Drag to pan when zoomed in
+  // Mouse drag to pan (all directions — up, down, left, right)
   zoomViewport.addEventListener("mousedown", (e) => {
-    if (overlayScale <= 1) return;
-    overlayDragging = true;
-    zoomViewport.classList.add("dragging");
-    overlayDragStart = { x: e.clientX, y: e.clientY };
-    overlayPanStart = { x: overlayPanX, y: overlayPanY };
+    startOverlayDrag(e.clientX, e.clientY);
+    e.preventDefault();
   });
-  window.addEventListener("mousemove", (e) => {
-    if (!overlayDragging) return;
-    overlayPanX = overlayPanStart.x + (e.clientX - overlayDragStart.x);
-    overlayPanY = overlayPanStart.y + (e.clientY - overlayDragStart.y);
-    applyOverlayTransform();
-  });
-  window.addEventListener("mouseup", () => {
-    overlayDragging = false;
-    zoomViewport.classList.remove("dragging");
-  });
+  window.addEventListener("mousemove", (e) => moveOverlayDrag(e.clientX, e.clientY));
+  window.addEventListener("mouseup", endOverlayDrag);
 
-  // Double-click the zoomed image to reset
+  // Touch drag to pan — smooth reading gesture on phones/tablets
+  zoomViewport.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      startOverlayDrag(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, { passive: true });
+  zoomViewport.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 1 && overlayDragging) {
+      moveOverlayDrag(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault();
+    }
+  }, { passive: false });
+  zoomViewport.addEventListener("touchend", endOverlayDrag);
+  zoomViewport.addEventListener("touchcancel", endOverlayDrag);
+
+  // Double-click / double-tap the zoomed image to toggle zoom
   zoomImage.addEventListener("dblclick", () => setOverlayScale(overlayScale > 1 ? 1 : 2.5));
 
   document.addEventListener("keydown", (e) => {
