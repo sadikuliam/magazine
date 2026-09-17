@@ -53,8 +53,9 @@
         var dFlipLocation = "https://cdn.jsdelivr.net/npm/dflip/"; 
         var dFlip = dFlip || {};
         dFlip.defaults = {
-            pdfRenderQuality: 1.5, // জুম করার পর স্পষ্ট দেখার জন্য 1.2 থেকে বাড়িয়ে 1.5 করা হয়েছে
-            webgl: true, // দ্রুত লোডিংয়ের জন্য চালু রাখা হয়েছে
+            pdfRenderQuality: 1.8, // জুমের কোয়ালিটি আরও বাড়ানো হলো
+            maxZoom: 4, // জুম করার সর্বোচ্চ ক্ষমতা বাড়ানো হলো (প্রয়োজনে এটি আরও বাড়াতে পারেন)
+            webgl: true, // দ্রুত লোডিংয়ের জন্য
             backgroundColor: "#f4f4f4", 
             pageMode: 1 
         };
